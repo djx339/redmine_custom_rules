@@ -2,7 +2,7 @@ Redmine::Plugin.register :custom_rules do
   name 'Custom Rules plugin'
   author 'Ding jianxiong'
   description 'This is a plugin for our custom rules about workflow'
-  version '0.0.1'
+  version '0.0.2'
   url 'https://github.com/daniel-djx/redmine_custom_rules'
   author_url 'http://redmine.socialworks.mobi/users/3'
 end
@@ -38,13 +38,14 @@ module CustomRules
 
       # Make sure current issue custom fields include 'Caused by' and 'Regression'.
       # And 'Caused by' should be a number and 'Regression's value should be false.
-      # Note: 'true' is '1' and 'false' is '0' in redmine custom field.
+      # Note: 'true' is '1' and 'false' is '0' in redmine custom field, default maybe nil.
       field_caused_by = field_regression = nil
       lissue.custom_field_values.each do |custom_value|
         field_caused_by = custom_value if custom_value.custom_field.name == 'Caused by' &&
                                           custom_value.value =~ /\d+/
         field_regression = custom_value if custom_value.custom_field.name == 'Regression' &&
-                                           custom_value.value == '0'    # See above Note.
+                                           (custom_value.value == '0' || ! custom_value.value)
+                                            # See above Note.
         break if field_caused_by and field_regression
       end
 
@@ -55,7 +56,9 @@ module CustomRules
             caused_by_issue = nil
           end
           # See above note.
-          field_regression.value = '1' if caused_by_issue && caused_by_issue.tracker.name == 'Bug'
+          # Sometime the default is 'nil', then the front will display black not no,
+          # so we should set the value is '0' when the bug is not a regression bug.
+          field_regression.value = (caused_by_issue && caused_by_issue.tracker.name == 'Bug') ? '1' : '0'
       end
     end
 
