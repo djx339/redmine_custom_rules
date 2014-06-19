@@ -24,6 +24,9 @@ module CustomRules
 
       # Update watcher list.
       update_current_issue_watcher_list(context)
+
+      # Verify the gerrit patch.
+      return verify_the_gerrit_patchset(context)
     end
 
     def controller_issues_new_before_save(context={})
@@ -78,6 +81,39 @@ module CustomRules
       # Add the current user to watcher list.
       unless context[:issue].watched_by?(User.current)
         context[:issue].set_watcher(User.current, true)
+      end
+    end
+
+
+    # Verify Gerrit Patch from redmine.
+    # Gerrit patchset should Verify +1, when the issue status from 'Resolved' to 'Verify Passed'.
+    # Gerrit patchset should Verify -1, when the issue status from 'Resolved' to 'Verify Faild'.
+    # The detail can be see http://redmine.socialworks.mobi/issues/2929
+    def verify_the_gerrit_patchset(context)
+      if context[:issue].status_id_changed? &&
+          context[:issue].status_was.name == 'Resolved' &&
+          (context[:issue].status.name == 'Verify Passed' || context[:issue].status.name == 'Verify Faild')
+        resolved_by = nil
+        context[:issue].custom_field_values.each do |custom_value|
+          resolved_by = custom_value if custom_value.custom_field.name == 'Resolved by'
+          break if resolved_by
+        end
+        unless resolved_by &&
+            resolved_by.value =~ /(\d+)\.(\d+)/
+          return
+        end
+        params = {
+            :user_name => User.current.name,
+            :user_mail => User.current.mail,
+            :old_status => context[:issue].status_was.name,
+            :new_status => context[:issue].status.name,
+            :issue_id => context[:issue].id,
+            :message => context[:journal].notes,
+            :change_number => $1,
+            :patchset_number => $2,
+        }
+        #TODO: delay requests
+        puts params
       end
     end
   end
